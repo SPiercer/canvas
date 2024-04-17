@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'dart:ui' as ui;
 
 import 'package:flex_color_picker/flex_color_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -40,7 +41,7 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
   double imageWidth = 0;
   double imageHeight = 0;
   final doorPaths = <(int, int), String?>{};
-
+  BlendMode selectedBlendMode = BlendMode.color;
   Color? overlayColor;
   Color? backgroundColor;
   Color? tileBackgroundColor;
@@ -68,12 +69,14 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
 
   var doorWidthInches = 8;
   var doorHeightInches = 7;
+  final scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     const dpi = 96.0;
-    final width =
-        doorWidthInches * dpi / 2; // why divide by 2? idk but it works
+
+    final width = doorWidthInches * dpi / 2;
+    // why divide by 2? idk but it works
     final height = doorHeightInches * dpi / 2;
 
     // final width = imageWidth * 4 + (imageWidth / 2);
@@ -81,6 +84,9 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
 
     final numberOfColumns = (width / imageWidth).round();
     final numberOfRows = (height / imageHeight).round();
+
+    final boxWidth = numberOfColumns * imageWidth;
+    final boxHeight = numberOfRows * imageHeight;
 
     log({
       'imageWidth': imageWidth,
@@ -140,7 +146,7 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
                 fit: BoxFit.fill,
                 colorFilter: ColorFilter.mode(
                   overlayColor ?? Colors.transparent,
-                  BlendMode.color,
+                  selectedBlendMode,
                 ),
                 image: AssetImage(
                   (doorPaths[(posX, posY)] ?? 'assets/image_0.png'),
@@ -154,56 +160,81 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
     }
 
     return Scaffold(
+      key: scaffoldKey,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // open bottom sheet from scaffold
-          showModalBottomSheet(
-            enableDrag: true,
-            isScrollControlled: true,
-            context: context,
-            builder: (context) {
-              // show a color picker for the three colors
-              return ListView(
+          // open drawer
+          scaffoldKey.currentState?.openDrawer();
+        },
+        child: const Icon(Icons.open_in_browser),
+      ),
+      body: Row(
+        children: [
+          Container(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            width: MediaQuery.of(context).size.width / 5,
+            child: SingleChildScrollView(
+              child: Column(
                 children: [
-                  TextField(
-                    controller:
-                        TextEditingController(text: doorWidthInches.toString()),
-                    // width of the door
-                    decoration: const InputDecoration(
-                      labelText: 'Width',
+                  SizedBox(
+                    width: 100,
+                    child: TextField(
+                      controller:
+                          TextEditingController(text: doorWidthInches.toString()),
+                      // width of the door
+                      decoration: const InputDecoration(
+                        labelText: 'Width',
+                      ),
+                      // format the input to be a number
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      onChanged: (value) {
+                        if (value.isNotEmpty) {
+                          setState(() {
+                            doorWidthInches = int.parse(value);
+                          });
+                        }
+                      },
                     ),
-                    // format the input to be a number
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    onChanged: (value) {
-                      if (value.isNotEmpty) {
-                        setState(() {
-                          doorWidthInches = int.parse(value);
-                        });
-                      }
-                    },
                   ),
-                  TextField(
-                    controller: TextEditingController(
-                        text: doorHeightInches.toString()),
-                    // height of the door
-                    decoration: const InputDecoration(
-                      labelText: 'Height',
+                  SizedBox(
+                    width: 100,
+                    child: TextField(
+                      controller: TextEditingController(
+                          text: doorHeightInches.toString()),
+                      // height of the door
+                      decoration: const InputDecoration(
+                        labelText: 'Height',
+                      ),
+                      // format the input to be a number
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      onChanged: (value) {
+                        if (value.isNotEmpty) {
+                          setState(() {
+                            doorHeightInches = int.parse(value);
+                          });
+                        }
+                      },
                     ),
-                    // format the input to be a number
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    onChanged: (value) {
-                      if (value.isNotEmpty) {
-                        setState(() {
-                          doorHeightInches = int.parse(value);
-                        });
-                      }
-                    },
+                  ),
+                  DropdownMenu(
+                    dropdownMenuEntries: BlendMode.values
+                        .map(
+                          (e) => DropdownMenuEntry(
+                            value: e,
+                            label: (e.toString().split('.').last),
+                          ),
+                        )
+                        .toList(),
+                    initialSelection: selectedBlendMode,
+                    onSelected: (value) => value == null
+                        ? null
+                        : setState(() => selectedBlendMode = value),
                   ),
                   ColorPicker(
                     title: const Text('Overlay Color'),
@@ -254,32 +285,33 @@ class _MyCanvasScreenState extends State<MyCanvasScreen> {
                     },
                   ),
                 ],
-              );
-            },
-          );
-        },
-        child: const Icon(Icons.open_in_browser),
-      ),
-      body: Center(
-        child: Builder(builder: (context) {
-          return Container(
-            width: width,
-            color: backgroundColor ?? Colors.black38,
-            child: GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: numberOfColumns,
-                childAspectRatio: imageWidth / imageHeight,
-                crossAxisSpacing: 0,
-                mainAxisSpacing: 1,
               ),
-              itemCount: gestureDetectors.length,
-              itemBuilder: (_, index) {
-                return gestureDetectors[index];
-              },
             ),
-          );
-        }),
+          ),
+          Expanded(
+            child: Center(
+              child: Builder(builder: (context) {
+                return Container(
+                  width: boxWidth,
+                  color: backgroundColor ?? Colors.black38,
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: numberOfColumns,
+                      childAspectRatio: imageWidth / imageHeight,
+                      crossAxisSpacing: 0,
+                      mainAxisSpacing: 1,
+                    ),
+                    itemCount: gestureDetectors.length,
+                    itemBuilder: (_, index) {
+                      return gestureDetectors[index];
+                    },
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
       ),
     );
   }
